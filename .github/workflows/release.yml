@@ -1,0 +1,46 @@
+name: Release
+
+# Builds Cadence on GitHub's own macOS runners - never on a machine behind a
+# corp network/app scanner - and attaches the .app/.dmg to a GitHub Release.
+# Push a tag like "v0.1.1" to cut a real release; workflow_dispatch is there
+# for an ad hoc test build.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-tauri:
+    # GitHub's macos-14 runners are Apple Silicon - matches both machines
+    # this needs to run on, so no cross-compilation or universal binary.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Cadence ${{ github.ref_name }}"
+          releaseBody: "Prebuilt macOS (Apple Silicon) build - download Cadence.app from the .dmg below, no local build required."
+          releaseDraft: true
+          prerelease: false
+          args: --target aarch64-apple-darwin
